@@ -1,6 +1,13 @@
 package gg.kapilarny.testserializer;
 
+import sun.misc.Unsafe;
+
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.List;
 
 public class ObjectSerializer {
 
@@ -101,7 +108,7 @@ public class ObjectSerializer {
                 }
             } else if(field.getType().isPrimitive()) {
                 try {
-                    if(field.get(object) != null) {
+                    if(field.get(object) == null) {
                         sb.append(field.getName()).append(":").append("null");
                     } else {
                         sb.append(field.getName()).append(":").append(field.get(object).toString());
@@ -112,6 +119,7 @@ public class ObjectSerializer {
             } else {
                 try {
                     Object nestedObject = field.get(object);
+                    if(Modifier.isStatic(nestedObject.getClass().getModifiers())) continue;
 
                     if(nestedObject != null) {
                         sb.append(field.getName()).append(":").append(serializeObject(nestedObject, true));
@@ -142,210 +150,398 @@ public class ObjectSerializer {
         return serializeObject(object, false);
     }
 
-    // Field Format: fieldName:value;
-    private static Object readField(Object mainObj, String fieldString) {
-        Class<?> clazz = null;
+    private static Object parseObject(String fieldString) {
         Object resultObject = null;
+        Class<?> clazz = null;
+        Class<?> objClazz = null;
 
-        StringBuilder fieldName = new StringBuilder();
-        char[] chars = fieldString.toCharArray();
-        int currentCharacter = 0;
-        while (true) {
-            if (currentCharacter > chars.length) break;
-            char c = chars[currentCharacter];
+        System.out.println("Parsing: " + fieldString);
 
-            if (c == ':') {
-                currentCharacter++; // Skip the ':' character
+        if(fieldString.equals("[]")) return null;
+
+        int currentChar = 0;
+        StringBuilder className = new StringBuilder();
+        while(true) {
+            if(currentChar >= fieldString.length()) {
                 break;
             }
 
-            fieldName.append(c);
-            currentCharacter++;
+            char c = fieldString.charAt(currentChar);
+
+            if(c == '(') {
+                currentChar++; // Skip the '{' character
+                break;
+            }
+
+            currentChar++;
+            className.append(c);
         }
 
         try {
-            Field field = mainObj.getClass().getDeclaredField(fieldName.toString());
-            field.setAccessible(true);
-            clazz = field.getType();
+            clazz = Class.forName(className.toString());
+            resultObject = clazz.newInstance();
+//            resultObject = unsafe.allocateInstance(clazz);
+        } catch (ClassNotFoundException | InstantiationException e) {
+            throw new RuntimeException(e);
+        }
+
+        List<FieldValue> fieldValues = new ArrayList<>();
+        StringBuilder fieldName = new StringBuilder();
+        StringBuilder fieldValue = new StringBuilder();
+        int bracketCount = 0;
+        while(true) {
+            if(currentChar >= fieldString.length()) {
+                break;
+            }
+
+            char c = fieldString.charAt(currentChar);
+
+            if(c == '(') {
+                bracketCount++;
+            } else if(c == ')') {
+                bracketCount--;
+            }
+
+            if(c == ':' && bracketCount == 0) {
+                fieldName.append(fieldValue);
+                fieldValue = new StringBuilder(); // Reset the field value
+                currentChar++;
+                continue;
+            }
+
+            if(c == ';' && bracketCount == 0) {
+                fieldValues.add(new FieldValue(fieldName.toString(), fieldValue.toString()));
+                fieldName = new StringBuilder();
+                fieldValue = new StringBuilder();
+                currentChar++;
+                continue;
+            }
+
+            currentChar++;
+            fieldValue.append(c);
+        }
+
+        for(FieldValue field : fieldValues) {
+            System.out.println("Field: " + field.getFieldName() + " Value: " + field.getFieldValue());
+
+            try {
+                Field f = clazz.getDeclaredField(field.getFieldName());
+                f.setAccessible(true);
+
+                if (f.getType().isArray()) {
+                    if (f.getType().getComponentType().isPrimitive()) {
+                        if (f.getType().getComponentType().equals(int.class)) {
+                            String[] values = field.getFieldValue().split(",");
+                            int[] array = new int[values.length];
+                            for (int i = 0; i < values.length; i++) {
+                                array[i] = Integer.parseInt(values[i]);
+                            }
+                            resultObject = array;
+                        } else if (f.getType().getComponentType().equals(double.class)) {
+                            String[] values = field.getFieldValue().split(",");
+                            double[] array = new double[values.length];
+                            for (int i = 0; i < values.length; i++) {
+                                array[i] = Double.parseDouble(values[i]);
+                            }
+                            resultObject = array;
+                        } else if (f.getType().getComponentType().equals(boolean.class)) {
+                            String[] values = field.getFieldValue().split(",");
+                            boolean[] array = new boolean[values.length];
+                            for (int i = 0; i < values.length; i++) {
+                                array[i] = Boolean.parseBoolean(values[i]);
+                            }
+                            resultObject = array;
+                        } else if (f.getType().getComponentType().equals(float.class)) {
+                            String[] values = field.getFieldValue().split(",");
+                            float[] array = new float[values.length];
+                            for (int i = 0; i < values.length; i++) {
+                                array[i] = Float.parseFloat(values[i]);
+                            }
+                            resultObject = array;
+                        } else if (f.getType().getComponentType().equals(long.class)) {
+                            String[] values = field.getFieldValue().split(",");
+                            long[] array = new long[values.length];
+                            for (int i = 0; i < values.length; i++) {
+                                array[i] = Long.parseLong(values[i]);
+                            }
+                            resultObject = array;
+                        } else if (f.getType().getComponentType().equals(short.class)) {
+                            String[] values = field.getFieldValue().split(",");
+                            short[] array = new short[values.length];
+                            for (int i = 0; i < values.length; i++) {
+                                array[i] = Short.parseShort(values[i]);
+                            }
+                            resultObject = array;
+                        } else if (f.getType().getComponentType().equals(byte.class)) {
+                            String[] values = field.getFieldValue().split(",");
+                            byte[] array = new byte[values.length];
+                            for (int i = 0; i < values.length; i++) {
+                                array[i] = Byte.parseByte(values[i]);
+                            }
+                            resultObject = array;
+                        } else if (f.getType().getComponentType().equals(char.class)) {
+                            String[] values = field.getFieldValue().split(",");
+                            char[] array = new char[values.length];
+                            for (int i = 0; i < values.length; i++) {
+                                array[i] = values[i].charAt(0);
+                            }
+                            resultObject = array;
+                        }
+                    } else {
+                        // If the field is an array of objects, we need to parse the array
+                        String[] array = field.getFieldValue().split(",");
+                        Object[] resultArray = new Object[array.length];
+
+                        for(int i = 0; i < array.length; i++) {
+                            resultArray[i] = parseObject(array[i]);
+                        }
+
+                        resultObject = resultArray;
+                    }
+                } else if (f.getType().isPrimitive()) {
+                    if (f.getType().equals(int.class)) {
+                        resultObject = Integer.parseInt(field.getFieldValue());
+                    } else if (f.getType().equals(double.class)) {
+                        resultObject = Double.parseDouble(field.getFieldValue());
+                    } else if (f.getType().equals(boolean.class)) {
+                        resultObject = Boolean.parseBoolean(field.getFieldValue());
+                    } else if (f.getType().equals(float.class)) {
+                        resultObject = Float.parseFloat(field.getFieldValue());
+                    } else if (f.getType().equals(long.class)) {
+                        resultObject = Long.parseLong(field.getFieldValue());
+                    } else if (f.getType().equals(short.class)) {
+                        resultObject = Short.parseShort(field.getFieldValue());
+                    } else if (f.getType().equals(byte.class)) {
+                        resultObject = Byte.parseByte(field.getFieldValue());
+                    } else if (f.getType().equals(char.class)) {
+                        resultObject = field.getFieldValue().charAt(0);
+                    }
+                } else {
+                    resultObject = parseObject(field.getFieldValue());
+                }
+            } catch (NoSuchFieldException e) {
+                e.printStackTrace();
+            }
+        }
+
+        return resultObject;
+    }
+
+    private static void processFieldValue(Object object, FieldValue fieldValue, Class objClass) {
+        Object resultObject = null;
+        Class<?> clazz = null;
+
+        // Get the class of the field
+        try {
+            clazz = object.getClass().getDeclaredField(fieldValue.getFieldName()).getType();
         } catch (NoSuchFieldException e) {
             throw new RuntimeException(e);
         }
 
         if(clazz.isPrimitive()) {
+            // If the field is primitive, we can just set the value
             if(clazz.equals(int.class)) {
-                resultObject = Integer.parseInt(fieldString.substring(fieldName.length() + 1, fieldString.length() - 1));
+                resultObject = Integer.parseInt(fieldValue.getFieldValue());
             } else if(clazz.equals(boolean.class)) {
-                resultObject = Boolean.parseBoolean(fieldString.substring(fieldName.length() + 1, fieldString.length() - 1));
+                resultObject = Boolean.parseBoolean(fieldValue.getFieldValue());
             } else if(clazz.equals(double.class)) {
-                resultObject = Double.parseDouble(fieldString.substring(fieldName.length() + 1, fieldString.length() - 1));
+                resultObject = Double.parseDouble(fieldValue.getFieldValue());
             } else if(clazz.equals(float.class)) {
-                resultObject = Float.parseFloat(fieldString.substring(fieldName.length() + 1, fieldString.length() - 1));
+                resultObject = Float.parseFloat(fieldValue.getFieldValue());
             } else if(clazz.equals(long.class)) {
-                resultObject = Long.parseLong(fieldString.substring(fieldName.length() + 1, fieldString.length() - 1));
+                resultObject = Long.parseLong(fieldValue.getFieldValue());
             } else if(clazz.equals(short.class)) {
-                resultObject = Short.parseShort(fieldString.substring(fieldName.length() + 1, fieldString.length() - 1));
+                resultObject = Short.parseShort(fieldValue.getFieldValue());
             } else if(clazz.equals(byte.class)) {
-                resultObject = Byte.parseByte(fieldString.substring(fieldName.length() + 1, fieldString.length() - 1));
+                resultObject = Byte.parseByte(fieldValue.getFieldValue());
             } else if(clazz.equals(char.class)) {
-                resultObject = fieldString.substring(fieldName.length() + 1, fieldString.length() - 1).charAt(0);
+                resultObject = fieldValue.getFieldValue().charAt(0);
+            }
+        } else if(clazz.isArray()) {
+            // If the field is an array, we need to parse the array
+            if(clazz.getComponentType().isPrimitive()) {
+                // If the array is primitive, we can just parse the array
+                if (clazz.getComponentType().equals(int.class)) {
+                    String[] array = fieldValue.getFieldValue().split(",");
+                    int[] resultArray = new int[array.length];
+                    for (int i = 0; i < array.length; i++) {
+                        resultArray[i] = Integer.parseInt(array[i]);
+                    }
+                    resultObject = resultArray;
+                } else if (clazz.getComponentType().equals(boolean.class)) {
+                    String[] array = fieldValue.getFieldValue().split(",");
+                    boolean[] resultArray = new boolean[array.length];
+                    for (int i = 0; i < array.length; i++) {
+                        resultArray[i] = Boolean.parseBoolean(array[i]);
+                    }
+                    resultObject = resultArray;
+                } else if (clazz.getComponentType().equals(double.class)) {
+                    String[] array = fieldValue.getFieldValue().split(",");
+                    double[] resultArray = new double[array.length];
+                    for (int i = 0; i < array.length; i++) {
+                        resultArray[i] = Double.parseDouble(array[i]);
+                    }
+                    resultObject = resultArray;
+                } else if (clazz.getComponentType().equals(float.class)) {
+                    String[] array = fieldValue.getFieldValue().split(",");
+                    float[] resultArray = new float[array.length];
+                    for (int i = 0; i < array.length; i++) {
+                        resultArray[i] = Float.parseFloat(array[i]);
+                    }
+                    resultObject = resultArray;
+                } else if (clazz.getComponentType().equals(long.class)) {
+                    String[] array = fieldValue.getFieldValue().split(",");
+                    long[] resultArray = new long[array.length];
+                    for (int i = 0; i < array.length; i++) {
+                        resultArray[i] = Long.parseLong(array[i]);
+                    }
+                    resultObject = resultArray;
+                } else if (clazz.getComponentType().equals(short.class)) {
+                    String[] array = fieldValue.getFieldValue().split(",");
+                    short[] resultArray = new short[array.length];
+                    for (int i = 0; i < array.length; i++) {
+                        resultArray[i] = Short.parseShort(array[i]);
+                    }
+                    resultObject = resultArray;
+                } else if (clazz.getComponentType().equals(byte.class)) {
+                    String[] array = fieldValue.getFieldValue().split(",");
+                    byte[] resultArray = new byte[array.length];
+                    for (int i = 0; i < array.length; i++) {
+                        resultArray[i] = Byte.parseByte(array[i]);
+                    }
+                    resultObject = resultArray;
+                } else if (clazz.getComponentType().equals(char.class)) {
+                    String[] array = fieldValue.getFieldValue().split(",");
+                    char[] resultArray = new char[array.length];
+                    for (int i = 0; i < array.length; i++) {
+                        resultArray[i] = array[i].charAt(0);
+                    }
+                    resultObject = resultArray;
+                }
+            } else {
+                // If the field is an array of objects, we need to parse the array
+                String[] array = fieldValue.getFieldValue().split(",");
+                Object[] resultArray = new Object[array.length];
+
+                // Get the class of the array objects
+                Class<?> objectsClazz = null;
+                try {
+                    objectsClazz = Class.forName(clazz.getComponentType().getName());
+                } catch (ClassNotFoundException e) {
+                    throw new RuntimeException(e);
+                }
+
+                // Parse each object in the array
+                for (int i = 0; i < array.length; i++) {
+                    resultArray[i] = parseObject(array[i]);
+                }
             }
         } else {
-            try {
-                resultObject = clazz.newInstance();
-            } catch (InstantiationException | IllegalAccessException e) {
-                throw new RuntimeException(e);
-            }
+            // Parse the field
+            resultObject = parseObject(fieldValue.getFieldValue());
         }
 
-        String currentField = "";
-        String currentFieldName = "";
-        int openedStatements = 0;
-        boolean hadOpenStatements = false;
-        while (true) {
-            if (currentCharacter > chars.length) break;
-            char c = chars[currentCharacter];
-
-            if (c == '(') {
-                openedStatements++;
-                hadOpenStatements = true;
-            } else if (c == ')') {
-                openedStatements--;
-                if(openedStatements == 0) {
-                    break;
-                }
-            }
-
-            if (c == ':' && currentFieldName.equals("")) {
-                currentFieldName = currentField;
-                currentField = "";
-                currentCharacter++;
-                continue;
-            }
-
-            if (c == ';' && openedStatements == 0 && hadOpenStatements) {
-                try {
-                    Object obj = readField(resultObject, currentField);
-                    Field field = obj.getClass().getDeclaredField(currentFieldName);
-                    field.setAccessible(true);
-                    field.set(resultObject, obj);
-                } catch (NoSuchFieldException | IllegalAccessException e) {
-                    throw new RuntimeException(e);
-                }
-
-                currentField = "";
-                currentFieldName = "";
-                hadOpenStatements = false;
-            } else if(c == ';') {
-                try {
-                    Field field = clazz.getDeclaredField(currentFieldName);
-                    Object obj = null;
-                    field.setAccessible(true);
-
-                    if(!currentField.equals("null")) {
-                        if(field.getType().equals(int.class)) {
-                            obj = Integer.parseInt(currentField);
-                        } else if(field.getType().equals(boolean.class)) {
-                            obj = Boolean.parseBoolean(currentField);
-                        } else if(field.getType().equals(double.class)) {
-                            obj = Double.parseDouble(currentField);
-                        } else if(field.getType().equals(float.class)) {
-                            obj = Float.parseFloat(currentField);
-                        } else if(field.getType().equals(long.class)) {
-                            obj = Long.parseLong(currentField);
-                        } else if(field.getType().equals(short.class)) {
-                            obj = Short.parseShort(currentField);
-                        } else if(field.getType().equals(byte.class)) {
-                            obj = Byte.parseByte(currentField);
-                        } else if(field.getType().equals(char.class)) {
-                            obj = currentField.charAt(0);
-                        }
-                    }
-
-                    field.set(resultObject, obj);
-                } catch (NoSuchFieldException | IllegalAccessException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-
-            currentField += c;
-            currentCharacter++;
+        // Set the field value
+        try {
+            System.out.println("Setting field " + fieldValue.getFieldName() + " in class" + objClass.getSimpleName() + " to " + resultObject);
+            Field field = object.getClass().getField(fieldValue.getFieldName());
+            field.setAccessible(true); // Make the field accessible
+            field.set(object, resultObject); // Set the field value
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            throw new RuntimeException(e);
         }
-
-        return resultObject;
     }
 
-    public static Object deserialize(String string) {
-        Class<?> clazz = null;
+    public static Object deserialize(String objectString) {
         Object resultObject = null;
+        Class<?> clazz = null;
 
-        StringBuilder clazzName = new StringBuilder();
-        char[] chars = string.toCharArray();
-        int currentCharacter = 0;
+        int currentChar = 0;
+        StringBuilder className = new StringBuilder();
         while(true) {
-            if(currentCharacter > chars.length) break;
-            char c = chars[currentCharacter];
+            if(currentChar > objectString.length()) {
+                throw new RuntimeException("Invalid object string");
+            }
+
+            char c = objectString.charAt(currentChar);
 
             if(c == '{') {
-                currentCharacter++; // Skip the '{' character
+                currentChar++; // Skip the '{' character
                 break;
             }
 
-            clazzName.append(c);
-            currentCharacter++;
+            currentChar++;
+            className.append(c);
         }
 
         try {
-            clazz = Class.forName(clazzName.toString());
+            clazz = Class.forName(className.toString());
         } catch (ClassNotFoundException e) {
             throw new RuntimeException(e);
         }
 
         try {
+//            resultObject = unsafe.allocateInstance(clazz);
             resultObject = clazz.newInstance();
         } catch (InstantiationException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }
 
-        String currentField = "";
-        String currentFieldName = "";
-        int openedStatements = 0;
-
+        List<FieldValue> fieldValues = new ArrayList<>();
+        StringBuilder fieldName = new StringBuilder();
+        StringBuilder fieldValue = new StringBuilder();
+        int bracketCount = 0;
         while(true) {
-            if(currentCharacter > chars.length) break;
-            char c = chars[currentCharacter];
+            if(currentChar > objectString.length()) {
+                throw new RuntimeException("Invalid object string");
+            }
 
-            if(c == '}') {
+            char c = objectString.charAt(currentChar);
+
+            if(c == '}') { // The string has ended.
                 break;
             }
 
             if(c == '(') {
-                openedStatements++;
+                bracketCount++;
             } else if(c == ')') {
-                openedStatements--;
+                bracketCount--;
             }
 
-            if(c == ':' && currentFieldName.equals("")) {
-                currentFieldName = currentField;
+            if(c == ':' && bracketCount == 0) {
+                fieldName.append(fieldValue);
+                fieldValue = new StringBuilder(); // Reset the field value
+                currentChar++;
+                continue;
             }
 
-            if(c == ';' && openedStatements == 0) {
-                try {
-                    Object obj = readField(resultObject, currentField);
-                    Field field = obj.getClass().getDeclaredField(currentFieldName);
-                    field.setAccessible(true);
-                    field.set(resultObject, obj);
-                } catch (NoSuchFieldException | IllegalAccessException e) {
-                    throw new RuntimeException(e);
-                }
-
-                currentField = "";
-                currentFieldName = "";
+            if(c == ';' && bracketCount == 0) {
+                fieldValues.add(new FieldValue(fieldName.toString(), fieldValue.toString()));
+                fieldName = new StringBuilder();
+                fieldValue = new StringBuilder();
+                currentChar++;
+                continue;
             }
 
-            currentField += c;
-            currentCharacter++;
+            currentChar++;
+            fieldValue.append(c);
+        }
+
+        for(FieldValue field : fieldValues) {
+            processFieldValue(resultObject, field, clazz);
         }
 
         return resultObject;
-    }
+   }
+
+   static Unsafe unsafe;
+   static {
+       try {
+           Field singleoneInstanceField = Unsafe.class.getDeclaredField("theUnsafe");
+           singleoneInstanceField.setAccessible(true);
+           unsafe = (Unsafe) singleoneInstanceField.get(null);
+       } catch (Exception e) {
+           e.printStackTrace();
+       }
+   }
 }
