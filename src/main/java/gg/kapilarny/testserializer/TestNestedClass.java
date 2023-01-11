@@ -1,6 +1,8 @@
 package gg.kapilarny.testserializer;
 
-public class TestNestedClass {
+import java.io.Serializable;
+
+public class TestNestedClass implements Serializable {
     int testInt;
     String testString;
 

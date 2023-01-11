@@ -10,7 +10,11 @@ public class TestClass {
         testNestedClass = new TestNestedClass(432, "heheh");
     }
 
-//        public String getTestString() {
+    public TestNestedClass getTestNestedClass() {
+        return testNestedClass;
+    }
+
+    //        public String getTestString() {
 //            return testString;
 //        }
 

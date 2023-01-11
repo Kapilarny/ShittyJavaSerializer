@@ -8,10 +8,15 @@ public class Main {
         testClass.setTestInt(123);
         testClass.setTestDouble(123.456);
 
-        String serialized = ObjectSerializer.serialize(testClass);
+        ObjectSerializer serializer = new ObjectSerializer();
+
+        String serialized = serializer.serialize(testClass);
         System.out.println(serialized);
 
-        TestClass deserialized = (TestClass) ObjectSerializer.deserialize(serialized);
+        TestClass deserialized = (TestClass) serializer.deserialize(serialized);
         System.out.println(deserialized.getTestInt());
+        System.out.println(deserialized.getTestDouble());
+        System.out.println(deserialized.getTestNestedClass().testInt);
+        System.out.println(deserialized.getTestNestedClass().testString);
     }
 }

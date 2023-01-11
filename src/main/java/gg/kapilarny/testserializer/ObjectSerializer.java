@@ -1,17 +1,21 @@
 package gg.kapilarny.testserializer;
 
-import sun.misc.Unsafe;
+import org.objenesis.Objenesis;
+import org.objenesis.ObjenesisStd;
+import org.objenesis.instantiator.ObjectInstantiator;
 
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class ObjectSerializer {
 
-    private static String serializeObject(Object object, boolean isNested) {
+    private static final Objenesis objenesis = new ObjenesisStd();
+
+    private String serializeObject(Object object, boolean isNested) {
         Class<?> clazz = object.getClass();
 
         StringBuilder sb = new StringBuilder();
@@ -146,11 +150,11 @@ public class ObjectSerializer {
         return sb.toString();
     }
 
-    public static String serialize(Object object) {
+    public String serialize(Object object) {
         return serializeObject(object, false);
     }
 
-    private static Object parseObject(String fieldString) {
+    private Object parseObject(String fieldString) {
         Object resultObject = null;
         Class<?> clazz = null;
         Class<?> objClazz = null;
@@ -162,13 +166,13 @@ public class ObjectSerializer {
         int currentChar = 0;
         StringBuilder className = new StringBuilder();
         while(true) {
-            if(currentChar >= fieldString.length()) {
+            if (currentChar >= fieldString.length()) {
                 break;
             }
 
             char c = fieldString.charAt(currentChar);
 
-            if(c == '(') {
+            if (c == '(') {
                 currentChar++; // Skip the '{' character
                 break;
             }
@@ -179,9 +183,10 @@ public class ObjectSerializer {
 
         try {
             clazz = Class.forName(className.toString());
-            resultObject = clazz.newInstance();
-//            resultObject = unsafe.allocateInstance(clazz);
-        } catch (ClassNotFoundException | InstantiationException e) {
+//            resultObject = clazz.newInstance();
+            ObjectInstantiator instantiator = objenesis.getInstantiatorOf(clazz);
+            resultObject = instantiator.newInstance();
+        } catch (ClassNotFoundException e) {
             throw new RuntimeException(e);
         }
 
@@ -221,6 +226,7 @@ public class ObjectSerializer {
             fieldValue.append(c);
         }
 
+        Map<String, Object> fieldMap = new HashMap<>();
         for(FieldValue field : fieldValues) {
             System.out.println("Field: " + field.getFieldName() + " Value: " + field.getFieldValue());
 
@@ -231,61 +237,77 @@ public class ObjectSerializer {
                 if (f.getType().isArray()) {
                     if (f.getType().getComponentType().isPrimitive()) {
                         if (f.getType().getComponentType().equals(int.class)) {
-                            String[] values = field.getFieldValue().split(",");
+                            String converted = field.getFieldValue().replace("[", "");
+                            converted = converted.replace("]", "");
+                            String[] values = converted.split(",");
                             int[] array = new int[values.length];
                             for (int i = 0; i < values.length; i++) {
                                 array[i] = Integer.parseInt(values[i]);
                             }
-                            resultObject = array;
+                            fieldMap.put(field.getFieldName(), array);
                         } else if (f.getType().getComponentType().equals(double.class)) {
-                            String[] values = field.getFieldValue().split(",");
+                            String converted = field.getFieldValue().replace("[", "");
+                            converted = converted.replace("]", "");
+                            String[] values = converted.split(",");
                             double[] array = new double[values.length];
                             for (int i = 0; i < values.length; i++) {
                                 array[i] = Double.parseDouble(values[i]);
                             }
-                            resultObject = array;
+                            fieldMap.put(field.getFieldName(), array);
                         } else if (f.getType().getComponentType().equals(boolean.class)) {
-                            String[] values = field.getFieldValue().split(",");
+                            String converted = field.getFieldValue().replace("[", "");
+                            converted = converted.replace("]", "");
+                            String[] values = converted.split(",");
                             boolean[] array = new boolean[values.length];
                             for (int i = 0; i < values.length; i++) {
                                 array[i] = Boolean.parseBoolean(values[i]);
                             }
-                            resultObject = array;
+                            fieldMap.put(field.getFieldName(), array);
                         } else if (f.getType().getComponentType().equals(float.class)) {
-                            String[] values = field.getFieldValue().split(",");
+                            String converted = field.getFieldValue().replace("[", "");
+                            converted = converted.replace("]", "");
+                            String[] values = converted.split(",");
                             float[] array = new float[values.length];
                             for (int i = 0; i < values.length; i++) {
                                 array[i] = Float.parseFloat(values[i]);
                             }
-                            resultObject = array;
+                            fieldMap.put(field.getFieldName(), array);
                         } else if (f.getType().getComponentType().equals(long.class)) {
-                            String[] values = field.getFieldValue().split(",");
+                            String converted = field.getFieldValue().replace("[", "");
+                            converted = converted.replace("]", "");
+                            String[] values = converted.split(",");
                             long[] array = new long[values.length];
                             for (int i = 0; i < values.length; i++) {
                                 array[i] = Long.parseLong(values[i]);
                             }
-                            resultObject = array;
+                            fieldMap.put(field.getFieldName(), array);
                         } else if (f.getType().getComponentType().equals(short.class)) {
-                            String[] values = field.getFieldValue().split(",");
+                            String converted = field.getFieldValue().replace("[", "");
+                            converted = converted.replace("]", "");
+                            String[] values = converted.split(",");
                             short[] array = new short[values.length];
                             for (int i = 0; i < values.length; i++) {
                                 array[i] = Short.parseShort(values[i]);
                             }
-                            resultObject = array;
+                            fieldMap.put(field.getFieldName(), array);
                         } else if (f.getType().getComponentType().equals(byte.class)) {
-                            String[] values = field.getFieldValue().split(",");
+                            String converted = field.getFieldValue().replace("[", "");
+                            converted = converted.replace("]", "");
+                            String[] values = converted.split(",");
                             byte[] array = new byte[values.length];
                             for (int i = 0; i < values.length; i++) {
                                 array[i] = Byte.parseByte(values[i]);
                             }
-                            resultObject = array;
+                            fieldMap.put(field.getFieldName(), array);
                         } else if (f.getType().getComponentType().equals(char.class)) {
-                            String[] values = field.getFieldValue().split(",");
+                            String converted = field.getFieldValue().replace("[", "");
+                            converted = converted.replace("]", "");
+                            String[] values = converted.split(",");
                             char[] array = new char[values.length];
                             for (int i = 0; i < values.length; i++) {
                                 array[i] = values[i].charAt(0);
                             }
-                            resultObject = array;
+                            fieldMap.put(field.getFieldName(), array);
                         }
                     } else {
                         // If the field is an array of objects, we need to parse the array
@@ -296,30 +318,41 @@ public class ObjectSerializer {
                             resultArray[i] = parseObject(array[i]);
                         }
 
-                        resultObject = resultArray;
+                        fieldMap.put(field.getFieldName(), resultArray);
                     }
                 } else if (f.getType().isPrimitive()) {
                     if (f.getType().equals(int.class)) {
-                        resultObject = Integer.parseInt(field.getFieldValue());
+                        fieldMap.put(field.getFieldName(), Integer.parseInt(field.getFieldValue()));
                     } else if (f.getType().equals(double.class)) {
-                        resultObject = Double.parseDouble(field.getFieldValue());
+                        fieldMap.put(field.getFieldName(), Double.parseDouble(field.getFieldValue()));
                     } else if (f.getType().equals(boolean.class)) {
-                        resultObject = Boolean.parseBoolean(field.getFieldValue());
+                        fieldMap.put(field.getFieldName(), Boolean.parseBoolean(field.getFieldValue()));
                     } else if (f.getType().equals(float.class)) {
-                        resultObject = Float.parseFloat(field.getFieldValue());
+                        fieldMap.put(field.getFieldName(), Float.parseFloat(field.getFieldValue()));
                     } else if (f.getType().equals(long.class)) {
-                        resultObject = Long.parseLong(field.getFieldValue());
+                        fieldMap.put(field.getFieldName(), Long.parseLong(field.getFieldValue()));
                     } else if (f.getType().equals(short.class)) {
-                        resultObject = Short.parseShort(field.getFieldValue());
+                        fieldMap.put(field.getFieldName(), Short.parseShort(field.getFieldValue()));
                     } else if (f.getType().equals(byte.class)) {
-                        resultObject = Byte.parseByte(field.getFieldValue());
+                        fieldMap.put(field.getFieldName(), Byte.parseByte(field.getFieldValue()));
                     } else if (f.getType().equals(char.class)) {
-                        resultObject = field.getFieldValue().charAt(0);
+                        fieldMap.put(field.getFieldName(), field.getFieldValue().charAt(0));
                     }
                 } else {
-                    resultObject = parseObject(field.getFieldValue());
+                    fieldMap.put(field.getFieldName(), parseObject(field.getFieldValue()));
                 }
             } catch (NoSuchFieldException e) {
+                e.printStackTrace();
+            }
+        }
+
+        for(Map.Entry<String, Object> entry : fieldMap.entrySet()) {
+            try {
+                Field f = clazz.getDeclaredField(entry.getKey());
+                if(Modifier.isStatic(f.getModifiers()) /*|| Modifier.isFinal(f.getModifiers())*/) continue;
+                f.setAccessible(true);
+                f.set(resultObject, entry.getValue());
+            } catch (NoSuchFieldException | IllegalAccessException e) {
                 e.printStackTrace();
             }
         }
@@ -327,7 +360,7 @@ public class ObjectSerializer {
         return resultObject;
     }
 
-    private static void processFieldValue(Object object, FieldValue fieldValue, Class objClass) {
+    private void processFieldValue(Object object, FieldValue fieldValue, Class objClass) {
         Object resultObject = null;
         Class<?> clazz = null;
 
@@ -362,28 +395,36 @@ public class ObjectSerializer {
             if(clazz.getComponentType().isPrimitive()) {
                 // If the array is primitive, we can just parse the array
                 if (clazz.getComponentType().equals(int.class)) {
-                    String[] array = fieldValue.getFieldValue().split(",");
+                    String converted = fieldValue.getFieldValue().replace("[", "");
+                    converted = converted.replace("]", "");
+                    String[] array = converted.split(",");
                     int[] resultArray = new int[array.length];
                     for (int i = 0; i < array.length; i++) {
                         resultArray[i] = Integer.parseInt(array[i]);
                     }
                     resultObject = resultArray;
                 } else if (clazz.getComponentType().equals(boolean.class)) {
-                    String[] array = fieldValue.getFieldValue().split(",");
+                    String converted = fieldValue.getFieldValue().replace("[", "");
+                    converted = converted.replace("]", "");
+                    String[] array = converted.split(",");
                     boolean[] resultArray = new boolean[array.length];
                     for (int i = 0; i < array.length; i++) {
                         resultArray[i] = Boolean.parseBoolean(array[i]);
                     }
                     resultObject = resultArray;
                 } else if (clazz.getComponentType().equals(double.class)) {
-                    String[] array = fieldValue.getFieldValue().split(",");
+                    String converted = fieldValue.getFieldValue().replace("[", "");
+                    converted = converted.replace("]", "");
+                    String[] array = converted.split(",");
                     double[] resultArray = new double[array.length];
                     for (int i = 0; i < array.length; i++) {
                         resultArray[i] = Double.parseDouble(array[i]);
                     }
                     resultObject = resultArray;
                 } else if (clazz.getComponentType().equals(float.class)) {
-                    String[] array = fieldValue.getFieldValue().split(",");
+                    String converted = fieldValue.getFieldValue().replace("[", "");
+                    converted = converted.replace("]", "");
+                    String[] array = converted.split(",");
                     float[] resultArray = new float[array.length];
                     for (int i = 0; i < array.length; i++) {
                         resultArray[i] = Float.parseFloat(array[i]);
@@ -397,21 +438,27 @@ public class ObjectSerializer {
                     }
                     resultObject = resultArray;
                 } else if (clazz.getComponentType().equals(short.class)) {
-                    String[] array = fieldValue.getFieldValue().split(",");
+                    String converted = fieldValue.getFieldValue().replace("[", "");
+                    converted = converted.replace("]", "");
+                    String[] array = converted.split(",");
                     short[] resultArray = new short[array.length];
                     for (int i = 0; i < array.length; i++) {
                         resultArray[i] = Short.parseShort(array[i]);
                     }
                     resultObject = resultArray;
                 } else if (clazz.getComponentType().equals(byte.class)) {
-                    String[] array = fieldValue.getFieldValue().split(",");
+                    String converted = fieldValue.getFieldValue().replace("[", "");
+                    converted = converted.replace("]", "");
+                    String[] array = converted.split(",");
                     byte[] resultArray = new byte[array.length];
                     for (int i = 0; i < array.length; i++) {
                         resultArray[i] = Byte.parseByte(array[i]);
                     }
                     resultObject = resultArray;
                 } else if (clazz.getComponentType().equals(char.class)) {
-                    String[] array = fieldValue.getFieldValue().split(",");
+                    String converted = fieldValue.getFieldValue().replace("[", "");
+                    converted = converted.replace("]", "");
+                    String[] array = converted.split(",");
                     char[] resultArray = new char[array.length];
                     for (int i = 0; i < array.length; i++) {
                         resultArray[i] = array[i].charAt(0);
@@ -443,8 +490,8 @@ public class ObjectSerializer {
 
         // Set the field value
         try {
-            System.out.println("Setting field " + fieldValue.getFieldName() + " in class" + objClass.getSimpleName() + " to " + resultObject);
-            Field field = object.getClass().getField(fieldValue.getFieldName());
+            System.out.println("Setting field " + fieldValue.getFieldName() + " in class " + objClass.getSimpleName() + " to " + resultObject);
+            Field field = object.getClass().getDeclaredField(fieldValue.getFieldName());
             field.setAccessible(true); // Make the field accessible
             field.set(object, resultObject); // Set the field value
         } catch (NoSuchFieldException | IllegalAccessException e) {
@@ -452,7 +499,7 @@ public class ObjectSerializer {
         }
     }
 
-    public static Object deserialize(String objectString) {
+    public Object deserialize(String objectString) {
         Object resultObject = null;
         Class<?> clazz = null;
 
@@ -480,12 +527,8 @@ public class ObjectSerializer {
             throw new RuntimeException(e);
         }
 
-        try {
-//            resultObject = unsafe.allocateInstance(clazz);
-            resultObject = clazz.newInstance();
-        } catch (InstantiationException | IllegalAccessException e) {
-            throw new RuntimeException(e);
-        }
+        ObjectInstantiator instantiator = objenesis.getInstantiatorOf(clazz);
+        resultObject = instantiator.newInstance();
 
         List<FieldValue> fieldValues = new ArrayList<>();
         StringBuilder fieldName = new StringBuilder();
@@ -532,16 +575,5 @@ public class ObjectSerializer {
         }
 
         return resultObject;
-   }
-
-   static Unsafe unsafe;
-   static {
-       try {
-           Field singleoneInstanceField = Unsafe.class.getDeclaredField("theUnsafe");
-           singleoneInstanceField.setAccessible(true);
-           unsafe = (Unsafe) singleoneInstanceField.get(null);
-       } catch (Exception e) {
-           e.printStackTrace();
-       }
    }
 }
