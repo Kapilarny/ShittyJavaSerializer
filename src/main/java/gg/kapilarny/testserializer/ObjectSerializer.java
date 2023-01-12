@@ -1,5 +1,6 @@
 package gg.kapilarny.testserializer;
 
+import jdk.internal.dynalink.beans.StaticClass;
 import org.objenesis.Objenesis;
 import org.objenesis.ObjenesisStd;
 import org.objenesis.instantiator.ObjectInstantiator;
@@ -123,7 +124,7 @@ public class ObjectSerializer {
             } else {
                 try {
                     Object nestedObject = field.get(object);
-                    if(Modifier.isStatic(nestedObject.getClass().getModifiers())) continue;
+//                    if(Modifier.isStatic(nestedObject.getClass().getModifiers())) continue;
 
                     if(nestedObject != null) {
                         sb.append(field.getName()).append(":").append(serializeObject(nestedObject, true));
@@ -154,7 +155,7 @@ public class ObjectSerializer {
         return serializeObject(object, false);
     }
 
-    private Object parseObject(String fieldString) {
+    private Object parseObject(String fieldString, List<DeserializedStaticObject> staticObjects) {
         Object resultObject = null;
         Class<?> clazz = null;
         Class<?> objClazz = null;
@@ -315,7 +316,7 @@ public class ObjectSerializer {
                         Object[] resultArray = new Object[array.length];
 
                         for(int i = 0; i < array.length; i++) {
-                            resultArray[i] = parseObject(array[i]);
+                            resultArray[i] = parseObject(array[i], staticObjects);
                         }
 
                         fieldMap.put(field.getFieldName(), resultArray);
@@ -339,7 +340,7 @@ public class ObjectSerializer {
                         fieldMap.put(field.getFieldName(), field.getFieldValue().charAt(0));
                     }
                 } else {
-                    fieldMap.put(field.getFieldName(), parseObject(field.getFieldValue()));
+                    fieldMap.put(field.getFieldName(), parseObject(field.getFieldValue(), staticObjects));
                 }
             } catch (NoSuchFieldException e) {
                 e.printStackTrace();
@@ -349,7 +350,10 @@ public class ObjectSerializer {
         for(Map.Entry<String, Object> entry : fieldMap.entrySet()) {
             try {
                 Field f = clazz.getDeclaredField(entry.getKey());
-                if(Modifier.isStatic(f.getModifiers()) /*|| Modifier.isFinal(f.getModifiers())*/) continue;
+                if(Modifier.isStatic(f.getModifiers())) {
+                    staticObjects.add(new DeserializedStaticObject(entry.getValue(), clazz.getName(), entry.getKey()));
+                    continue;
+                }
                 f.setAccessible(true);
                 f.set(resultObject, entry.getValue());
             } catch (NoSuchFieldException | IllegalAccessException e) {
@@ -360,7 +364,7 @@ public class ObjectSerializer {
         return resultObject;
     }
 
-    private void processFieldValue(Object object, FieldValue fieldValue, Class objClass) {
+    private void processFieldValue(Object object, FieldValue fieldValue, Class objClass, List<DeserializedStaticObject> staticObjects) {
         Object resultObject = null;
         Class<?> clazz = null;
 
@@ -480,26 +484,39 @@ public class ObjectSerializer {
 
                 // Parse each object in the array
                 for (int i = 0; i < array.length; i++) {
-                    resultArray[i] = parseObject(array[i]);
+                    resultArray[i] = parseObject(array[i], staticObjects);
                 }
             }
         } else {
             // Parse the field
-            resultObject = parseObject(fieldValue.getFieldValue());
+            resultObject = parseObject(fieldValue.getFieldValue(), staticObjects);
         }
 
         // Set the field value
         try {
             System.out.println("Setting field " + fieldValue.getFieldName() + " in class " + objClass.getSimpleName() + " to " + resultObject);
             Field field = object.getClass().getDeclaredField(fieldValue.getFieldName());
-            field.setAccessible(true); // Make the field accessible
-            field.set(object, resultObject); // Set the field value
+            if(Modifier.isStatic(field.getModifiers())) {
+                System.out.println("Field is static, adding to static fields");
+                staticObjects.add(new DeserializedStaticObject(resultObject, field.getDeclaringClass().getName(), field.getName()));
+            } else {
+                field.setAccessible(true); // Make the field accessible
+                field.set(object, resultObject); // Set the field value
+            }
         } catch (NoSuchFieldException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }
     }
 
+    public DeserializedResult deserializeWithStatics(String objectString) {
+        return deserializeObject(objectString, true);
+    }
+
     public Object deserialize(String objectString) {
+        return deserializeObject(objectString, false).getObject();
+    }
+
+    private DeserializedResult deserializeObject(String objectString, boolean doesParseStatics) {
         Object resultObject = null;
         Class<?> clazz = null;
 
@@ -570,10 +587,15 @@ public class ObjectSerializer {
             fieldValue.append(c);
         }
 
+        List<DeserializedStaticObject> staticObjects = new ArrayList<>();
         for(FieldValue field : fieldValues) {
-            processFieldValue(resultObject, field, clazz);
+            processFieldValue(resultObject, field, clazz, staticObjects);
         }
 
-        return resultObject;
+        for(DeserializedStaticObject staticObject : staticObjects) {
+            System.out.println("Static field: " + staticObject.getFieldName());
+        }
+
+        return new DeserializedResult(resultObject, null);
    }
 }
