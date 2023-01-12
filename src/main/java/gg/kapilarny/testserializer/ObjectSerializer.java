@@ -5,7 +5,6 @@
 
 package gg.kapilarny.testserializer;
 
-import jdk.internal.dynalink.beans.StaticClass;
 import org.objenesis.Objenesis;
 import org.objenesis.ObjenesisStd;
 import org.objenesis.instantiator.ObjectInstantiator;
@@ -34,6 +33,12 @@ public class ObjectSerializer {
 
         for(Field field : clazz.getDeclaredFields()) {
             field.setAccessible(true);
+
+            try {
+                if(field.get(object) == null) continue;
+            } catch (IllegalAccessException e) {
+                throw new RuntimeException(e);
+            }
 
             if(field.getType().isArray()) {
                 try {
@@ -601,6 +606,6 @@ public class ObjectSerializer {
             System.out.println("Static field: " + staticObject.getFieldName());
         }
 
-        return new DeserializedResult(resultObject, null);
-   }
+        return new DeserializedResult(resultObject, staticObjects);
+    }
 }
