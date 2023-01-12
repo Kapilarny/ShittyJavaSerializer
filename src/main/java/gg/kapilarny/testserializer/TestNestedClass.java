@@ -1,3 +1,8 @@
+/*
+ * Copyright @Kapilarny 2023.
+ * Do whatever you want with this lol.
+ */
+
 package gg.kapilarny.testserializer;
 
 import java.io.Serializable;
