@@ -382,7 +382,8 @@ public class ObjectSerializer {
         try {
             clazz = object.getClass().getDeclaredField(fieldValue.getFieldName()).getType();
         } catch (NoSuchFieldException e) {
-            throw new RuntimeException(e);
+            System.out.println("Class: " + e.getClass().getSimpleName() + ", does not exist within this project.");
+            return;
         }
 
         if(clazz.isPrimitive()) {
@@ -489,7 +490,8 @@ public class ObjectSerializer {
                 try {
                     objectsClazz = Class.forName(clazz.getComponentType().getName());
                 } catch (ClassNotFoundException e) {
-                    throw new RuntimeException(e);
+                    System.out.println("Class: " + e.getClass().getSimpleName() + ", does not exist within this project.");
+                    return;
                 }
 
                 // Parse each object in the array
@@ -524,6 +526,73 @@ public class ObjectSerializer {
 
     public Object deserialize(String objectString) {
         return deserializeObject(objectString, false).getObject();
+    }
+
+    public DeserializedResult deserializeIntoObject(String objectString, Object resultObject) {
+        int currentChar = 0;
+        StringBuilder className = new StringBuilder();
+        while(true) {
+            if(currentChar > objectString.length()) {
+                throw new RuntimeException("Invalid object string");
+            }
+
+            char c = objectString.charAt(currentChar);
+
+            if(c == '{') {
+                currentChar++; // Skip the '{' character
+                break;
+            }
+
+            currentChar++;
+            className.append(c);
+        }
+
+        List<FieldValue> fieldValues = new ArrayList<>();
+        StringBuilder fieldName = new StringBuilder();
+        StringBuilder fieldValue = new StringBuilder();
+        int bracketCount = 0;
+        while(true) {
+            if(currentChar > objectString.length()) {
+                throw new RuntimeException("Invalid object string");
+            }
+
+            char c = objectString.charAt(currentChar);
+
+            if(c == '}') { // The string has ended.
+                break;
+            }
+
+            if(c == '(') {
+                bracketCount++;
+            } else if(c == ')') {
+                bracketCount--;
+            }
+
+            if(c == ':' && bracketCount == 0) {
+                fieldName.append(fieldValue);
+                fieldValue = new StringBuilder(); // Reset the field value
+                currentChar++;
+                continue;
+            }
+
+            if(c == ';' && bracketCount == 0) {
+                fieldValues.add(new FieldValue(fieldName.toString(), fieldValue.toString()));
+                fieldName = new StringBuilder();
+                fieldValue = new StringBuilder();
+                currentChar++;
+                continue;
+            }
+
+            currentChar++;
+            fieldValue.append(c);
+        }
+
+        List<DeserializedStaticObject> staticObjects = new ArrayList<>();
+        for(FieldValue field : fieldValues) {
+            processFieldValue(resultObject, field, resultObject.getClass(), staticObjects);
+        }
+
+        return new DeserializedResult(resultObject, staticObjects);
     }
 
     private DeserializedResult deserializeObject(String objectString, boolean doesParseStatics) {

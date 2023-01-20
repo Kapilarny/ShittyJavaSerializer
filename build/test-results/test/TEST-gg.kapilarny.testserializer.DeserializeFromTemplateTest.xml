@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="gg.kapilarny.testserializer.DeserializeFromTemplateTest" tests="1" skipped="0" failures="0" errors="0" timestamp="2023-01-20T23:38:27" hostname="DAWIDPC" time="0.054">
+  <properties/>
+  <testcase name="deserializeFromTemplate()" classname="gg.kapilarny.testserializer.DeserializeFromTemplateTest" time="0.054"/>
+  <system-out><![CDATA[Setting field testInt in class TestClassTemplate to 69
+Parsing: gg.kapilarny.testserializer.DeserializeFromTemplateTest()
+Setting field this$0 in class TestClassTemplate to gg.kapilarny.testserializer.DeserializeFromTemplateTest@77f1baf5
+]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
